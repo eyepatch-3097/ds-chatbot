@@ -33,7 +33,6 @@ DEBUG = True
 ALLOWED_HOSTS = os.getenv(
     "ds-chatbot.onrender.com"
     "DJANGO_ALLOWED_HOSTS",
-    "127.0.0.1,localhost"
 ).split(",")
 
 
@@ -74,7 +73,6 @@ if not CORS_ALLOW_ALL_ORIGINS:
     CORS_ALLOWED_ORIGINS = os.getenv(
         "https://ds-chatbot.onrender.com",
         "CORS_ALLOWED_ORIGINS",
-        "http://127.0.0.1:8000,http://localhost:8000"
     ).split(",")
 
 CSRF_TRUSTED_ORIGINS = os.getenv(
