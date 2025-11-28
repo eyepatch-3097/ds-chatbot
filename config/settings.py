@@ -31,6 +31,7 @@ SECRET_KEY = 'django-insecure-^13o&^blw6j7*27l3j-f*$yj4p!0vet62)=j$lu%no2d62&)v*
 DEBUG = True
 
 ALLOWED_HOSTS = os.getenv(
+    "ds-chatbot.onrender.com"
     "DJANGO_ALLOWED_HOSTS",
     "127.0.0.1,localhost"
 ).split(",")
@@ -71,6 +72,7 @@ CORS_ALLOW_ALL_ORIGINS = os.getenv("CORS_ALLOW_ALL_ORIGINS", "False") == "True"
 if not CORS_ALLOW_ALL_ORIGINS:
     # e.g. "http://127.0.0.1:8000,http://localhost:8000,https://www.dotswitch.space,https://chatbot.dotswitch.space"
     CORS_ALLOWED_ORIGINS = os.getenv(
+        "https://ds-chatbot.onrender.com",
         "CORS_ALLOWED_ORIGINS",
         "http://127.0.0.1:8000,http://localhost:8000"
     ).split(",")
