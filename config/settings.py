@@ -31,7 +31,7 @@ SECRET_KEY = 'django-insecure-^13o&^blw6j7*27l3j-f*$yj4p!0vet62)=j$lu%no2d62&)v*
 DEBUG = True
 
 ALLOWED_HOSTS = os.getenv(
-    "ds-chatbot.onrender.com"
+    "ds-chatbot.onrender.com",
     "DJANGO_ALLOWED_HOSTS",
 ).split(",")
 
