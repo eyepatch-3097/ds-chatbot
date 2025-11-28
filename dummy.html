@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Dotswitch Chatbot Test</title>
+  </head>
+  <body>
+    <h1>Dotswitch Chatbot Test</h1>
+    <p>Open the chat widget in bottom-right.</p>
+
+    <!-- Paste the entire <script> widget from above here -->
+<script>
+(function() {
+  const BACKEND_URL = "http://127.0.0.1:8000"; // change to your deployed URL later
+
+  let sessionId = null;
+  let pendingGatedLinks = [];
+  let pendingLeadType = null;
+  let pendingLeadContext = null;
+
+  // Create widget button & panel
+  function createChatWidget() {
+    const button = document.createElement("div");
+    button.id = "ds-chatbot-button";
+    button.style.position = "fixed";
+    button.style.bottom = "20px";
+    button.style.right = "20px";
+    button.style.width = "56px";
+    button.style.height = "56px";
+    button.style.borderRadius = "50%";
+    button.style.background = "#111827";
+    button.style.color = "#fff";
+    button.style.display = "flex";
+    button.style.alignItems = "center";
+    button.style.justifyContent = "center";
+    button.style.cursor = "pointer";
+    button.style.boxShadow = "0 6px 18px rgba(0,0,0,0.25)";
+    button.style.zIndex = "9999";
+    button.innerText = "💬";
+
+    const panel = document.createElement("div");
+    panel.id = "ds-chatbot-panel";
+    panel.style.position = "fixed";
+    panel.style.bottom = "90px";
+    panel.style.right = "20px";
+    panel.style.width = "320px";
+    panel.style.height = "420px";
+    panel.style.borderRadius = "16px";
+    panel.style.background = "#ffffff";
+    panel.style.boxShadow = "0 12px 40px rgba(15,23,42,0.35)";
+    panel.style.display = "none";
+    panel.style.flexDirection = "column";
+    panel.style.overflow = "hidden";
+    panel.style.zIndex = "9999";
+    panel.style.fontFamily = "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+    panel.innerHTML = `
+  <div style="padding: 10px 14px; background:#111827; color:white; display:flex; align-items:center; justify-content:space-between; gap:8px;">
+    <div style="flex:1;">
+      <div style="font-weight:600; font-size:14px;">Dotswitch AI Concierge</div>
+      <div style="font-size:11px; opacity:0.8;">Ask anything about Dotswitch, AI content, or pricing.</div>
+    </div>
+    <button id="ds-chatbot-talk" style="background:#FBB13C;border:none;color:#111827;font-size:10px;padding:4px 6px;border-radius:999px;cursor:pointer;white-space:nowrap;">Talk to Sid</button>
+    <button id="ds-chatbot-close" style="background:none;border:none;color:white;font-size:18px;cursor:pointer;">×</button>
+  </div>
+  <div id="ds-chatbot-messages" style="flex:1; padding:10px; overflow-y:auto; font-size:13px; background:#F9FAFB;"></div>
+  <div id="ds-chatbot-lead" style="display:none; padding:8px; border-top:1px solid #E5E7EB; background:#FEFCE8;">
+    <form id="ds-chatbot-lead-form" style="display:flex; flex-direction:column; gap:6px; font-size:12px;">
+      <div>Drop your details and Sid will reach out personally ✉️</div>
+      <input id="ds-lead-name" type="text" placeholder="Your name (optional)" style="padding:6px 8px; border-radius:6px; border:1px solid #D1D5DB; font-size:12px;" />
+      <input id="ds-lead-email" type="email" placeholder="Your email" style="padding:6px 8px; border-radius:6px; border:1px solid #D1D5DB; font-size:12px;" />
+      <button type="submit" style="align-self:flex-end; border:none; background:#111827; color:white; padding:6px 10px; border-radius:999px; font-size:12px; cursor:pointer;">Send</button>
+    </form>
+  </div>
+  <div style="border-top:1px solid #E5E7EB; padding:8px;">
+    <form id="ds-chatbot-form" style="display:flex; gap:6px;">
+      <input id="ds-chatbot-input" type="text" placeholder="Type your question..." style="flex:1; padding:6px 8px; border-radius:999px; border:1px solid #D1D5DB; font-size:13px; outline:none;" />
+      <button type="submit" style="border:none; background:#111827; color:white; padding:6px 10px; border-radius:999px; font-size:13px; cursor:pointer;">Send</button>
+    </form>
+  </div>
+`;
+
+
+    document.body.appendChild(button);
+    document.body.appendChild(panel);
+
+    const messagesEl = document.getElementById("ds-chatbot-messages");
+    const formEl = document.getElementById("ds-chatbot-form");
+    const inputEl = document.getElementById("ds-chatbot-input");
+    const closeEl = document.getElementById("ds-chatbot-close");
+    const talkEl = document.getElementById("ds-chatbot-talk");
+    const leadSectionEl = document.getElementById("ds-chatbot-lead");
+    const leadFormEl = document.getElementById("ds-chatbot-lead-form");
+    const leadNameEl = document.getElementById("ds-lead-name");
+    const leadEmailEl = document.getElementById("ds-lead-email");
+
+    button.addEventListener("click", () => {
+      panel.style.display = panel.style.display === "none" ? "flex" : "none";
+      if (panel.style.display === "flex") {
+        inputEl.focus();
+      }
+    });
+
+    closeEl.addEventListener("click", () => {
+      panel.style.display = "none";
+    });
+
+    talkEl.addEventListener("click", () => {
+      // toggle lead form visibility
+      const visible = leadSectionEl.style.display === "block";
+      leadSectionEl.style.display = visible ? "none" : "block";
+
+      // Mark that this is a contact-intent lead
+      pendingLeadType = "contact";
+      pendingLeadContext = "Chatbot: user clicked 'Talk to Sid' button.";
+    });
+
+        leadFormEl.addEventListener("submit", async function(e) {
+      e.preventDefault();
+      const name = leadNameEl.value.trim();
+      const email = leadEmailEl.value.trim();
+
+      if (!email) {
+        alert("Please enter an email so Sid can reach you.");
+        return;
+      }
+
+      // Decide lead type & message based on context
+      const leadType = pendingLeadType || "contact";
+      let messageText = "Chatbot: user requested contact via lead form.";
+
+      if (leadType === "gated_info" && pendingLeadContext) {
+        messageText = "Chatbot: user requested gated resources:\n" + pendingLeadContext;
+      } else if (!pendingLeadContext) {
+        messageText = "Chatbot: user requested contact via lead form.";
+      }
+
+      try {
+        const payload = {
+          name: name,
+          email: email,
+          lead_type: leadType,
+          message: messageText,
+        };
+        if (sessionId) payload.session_id = sessionId;
+
+        const res = await fetch(BACKEND_URL + "/api/chat/lead/", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        const data = await res.json();
+        if (data.status === "ok") {
+          addMessage("bot", "Got it! I'll make sure Sid reaches out to you soon at " + email + ".");
+          leadSectionEl.style.display = "none";
+          leadNameEl.value = "";
+          leadEmailEl.value = "";
+
+          // If this was for gated links, now unlock and show them
+          if (leadType === "gated_info" && pendingGatedLinks.length > 0) {
+            addMessage("bot", "Thanks! Here are the resources we discussed:", pendingGatedLinks);
+            pendingGatedLinks = [];
+            pendingLeadType = null;
+            pendingLeadContext = null;
+          } else {
+            // For normal contact leads, reset contextual state but no extra links
+            pendingLeadType = null;
+            pendingLeadContext = null;
+          }
+        } else {
+          addMessage("bot", "I couldn't save your details. Please try again or email us directly.");
+        }
+      } catch (err) {
+        console.error("Lead submit error:", err);
+        addMessage("bot", "Something went wrong while saving your details. Please try again.");
+      }
+    });
+
+
+
+    function addMessage(role, text, links) {
+        const wrapper = document.createElement("div");
+        wrapper.style.marginBottom = "8px";
+
+        const bubble = document.createElement("div");
+
+        if (role === "user") {
+            wrapper.style.textAlign = "right";
+            bubble.innerHTML = `<span style="display:inline-block; background:#111827; color:white; padding:6px 10px; border-radius:12px; max-width:80%; text-align:left;">${text}</span>`;
+        } else {
+            wrapper.style.textAlign = "left";
+            bubble.innerHTML = `<span style="display:inline-block; background:white; color:#111827; padding:6px 10px; border-radius:12px; border:1px solid #E5E7EB; max-width:80%;">${text}</span>`;
+        }
+
+        wrapper.appendChild(bubble);
+
+  // If there are links and this is a bot message, render buttons
+        if (role === "bot" && Array.isArray(links) && links.length > 0) {
+            const btnRow = document.createElement("div");
+            btnRow.style.marginTop = "6px";
+            btnRow.style.display = "flex";
+            btnRow.style.flexWrap = "wrap";
+            btnRow.style.gap = "6px";
+
+            links.forEach(link => {
+                const btn = document.createElement("button");
+                btn.type = "button";
+                btn.textContent = link.label;
+                btn.style.border = "1px solid #D1D5DB";
+                btn.style.background = "#F3F4F6";
+                btn.style.color = "#111827";
+                btn.style.borderRadius = "999px";
+                btn.style.padding = "4px 8px";
+                btn.style.fontSize = "11px";
+                btn.style.cursor = "pointer";
+
+                btn.addEventListener("click", () => {
+                    window.open(link.url, "_blank");
+                });
+
+                btnRow.appendChild(btn);
+            });
+
+            wrapper.appendChild(btnRow);
+        }
+
+        messagesEl.appendChild(wrapper);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+
+    async function sendMessage(text) {
+      addMessage("user", text);
+      inputEl.value = "";
+
+      // show temporary typing indicator
+      const typingId = "ds-chatbot-typing";
+      const typingEl = document.createElement("div");
+      typingEl.id = typingId;
+      typingEl.style.marginBottom = "8px";
+      typingEl.innerHTML = `<span style="display:inline-block; background:white; color:#6B7280; padding:6px 10px; border-radius:12px; border:1px solid #E5E7EB; font-size:12px;">Thinking...</span>`;
+      messagesEl.appendChild(typingEl);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+
+      try {
+        const payload = { message: text };
+        if (sessionId) payload.session_id = sessionId;
+
+        const res = await fetch(BACKEND_URL + "/api/chat/message/", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        
+        const data = await res.json();
+        sessionId = data.session_id;
+
+        // remove typing
+        const t = document.getElementById(typingId);
+        if (t) t.remove();
+
+        // last message text
+        const lastMsg = data.messages[data.messages.length - 1];
+
+        // links from backend (may be empty or undefined)
+        const links = data.links || [];
+
+        // gated links (PDFs)
+        const gatedLinks = data.gated_links || [];
+        const needsLeadForLinks = data.needs_lead_for_links || false;
+
+        // decide what to show now
+        let displayLinks = links;
+
+         // If we have gated links, don't show them yet. Store them for after lead capture.
+        if (needsLeadForLinks && gatedLinks.length > 0) {
+          pendingGatedLinks = gatedLinks;
+          pendingLeadType = "gated_info";
+          pendingLeadContext = gatedLinks
+            .map(gl => `${gl.label}: ${gl.url}`)
+            .join("\n");
+
+          // only show non-gated links for now
+          displayLinks = links; // keep existing service buttons, if any
+        }
+
+        addMessage("bot", lastMsg.text, displayLinks);
+
+        // If backend suggests a lead prompt, show it and open form
+        const leadSuggestion = data.lead_suggestion || null;
+        if (leadSuggestion) {
+          addMessage("bot", leadSuggestion);
+          leadSectionEl.style.display = "block";
+        }
+
+    } catch (e) {
+        console.error("Chat fetch error:", e);
+        const t = document.getElementById(typingId);
+        if (t) t.remove();
+        addMessage("bot", "Oops, I couldn't reach the server. Please try again.");
+      }
+    }
+
+    formEl.addEventListener("submit", function(e) {
+      e.preventDefault();
+      const text = inputEl.value.trim();
+      if (!text) return;
+      sendMessage(text);
+    });
+
+    // initial greeting
+    setTimeout(() => {
+      addMessage("bot", "Hi! I'm the Dotswitch AI Concierge. What are you trying to figure out today?");
+    }, 500);
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", createChatWidget);
+  } else {
+    createChatWidget();
+  }
+})();
+</script>
+
+  </body>
+</html>

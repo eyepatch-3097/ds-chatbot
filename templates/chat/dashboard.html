@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Dotswitch Chatbot Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #0f172a;
+      color: #e5e7eb;
+    }
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 24px 16px 40px;
+    }
+    h1 {
+      font-size: 24px;
+      margin-bottom: 8px;
+    }
+    .subtitle {
+      font-size: 13px;
+      color: #9ca3af;
+      margin-bottom: 24px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .card {
+      background: #020617;
+      border-radius: 16px;
+      padding: 16px 16px 14px;
+      border: 1px solid #1f2937;
+      box-shadow: 0 18px 40px rgba(15, 23, 42, 0.5);
+    }
+
+    .card-chart {
+      height: 260px;          /* or 220 / 300 depending on how tall you want */
+      display: flex;
+      flex-direction: column;
+    }
+
+    .card-chart canvas {
+      flex: 1;
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    .card h2 {
+      font-size: 13px;
+      font-weight: 500;
+      color: #9ca3af;
+      margin-bottom: 8px;
+    }
+    .card .value {
+      font-size: 22px;
+      font-weight: 600;
+    }
+    .pill {
+      display: inline-block;
+      margin-left: 8px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      background: #0ea5e9;
+      color: #0f172a;
+    }
+    .section-title {
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 8px;
+      margin-top: 8px;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 16px;
+      align-items: flex-start;
+      margin-bottom: 24px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    th, td {
+      padding: 6px 8px;
+      border-bottom: 1px solid #1f2937;
+    }
+    th {
+      text-align: left;
+      color: #9ca3af;
+      font-weight: 500;
+    }
+    tr:hover td {
+      background: rgba(15, 23, 42, 0.6);
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 999px;
+      font-size: 11px;
+      background: #111827;
+      color: #e5e7eb;
+    }
+    a {
+      color: #38bdf8;
+      text-decoration: none;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+    .topbar-links {
+      font-size: 12px;
+    }
+    .topbar-links a {
+      margin-left: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div style="display:flex; justify-content:space-between; align-items:baseline; gap:8px;">
+      <div>
+        <h1>Dotswitch Chatbot Analytics</h1>
+        <div class="subtitle">Internal dashboard • IP &amp; lead tracking for dotswitch.space chatbot</div>
+      </div>
+      <div class="topbar-links">
+        <a href="{% url 'chatbot_dashboard' %}">Dashboard</a> |
+        <a href="{% url 'chat_lead_list' %}">Lead list</a>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h2>Total sessions</h2>
+        <div class="value">{{ total_sessions }}</div>
+      </div>
+      <div class="card">
+        <h2>Total leads</h2>
+        <div class="value">{{ total_leads }}</div>
+        <div style="margin-top:4px; font-size:11px; color:#9ca3af;">
+          Gated leads: <span class="badge">{{ total_gated_leads }}</span>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Conversion rate</h2>
+        <div class="value">{{ conversion_rate }}%</div>
+      </div>
+      <div class="card">
+        <h2>Messages</h2>
+        <div class="value">{{ total_user_messages }} <span style="font-size:12px; font-weight:400;">user</span></div>
+        <div style="font-size:11px; color:#9ca3af; margin-top:2px;">
+          {{ total_bot_messages }} bot replies
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="card card-chart">
+        <div class="section-title">Sessions &amp; leads (last 14 days)</div>
+        <canvas id="sessionsLeadsChart" height="140"></canvas>
+      </div>
+      <div class="card">
+        <div class="section-title">Sessions by country</div>
+        <table>
+          <thead>
+            <tr>
+              <th>Country</th>
+              <th>Sessions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in sessions_by_country %}
+              <tr>
+                <td>{{ item.country|default:"(unknown)" }}</td>
+                <td>{{ item.count }}</td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="2">No data yet.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">Recent sessions</div>
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Created</th>
+            <th>IP</th>
+            <th>Country</th>
+            <th>City</th>
+            <th>User msgs</th>
+            <th>Bot msgs</th>
+            <th>Leads</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in recent_sessions %}
+            <tr>
+              <td>#{{ s.id }}</td>
+              <td>{{ s.created_at|date:"Y-m-d H:i" }}</td>
+              <td>{{ s.ip_address }}</td>
+              <td>{{ s.country|default:"" }}</td>
+              <td>{{ s.city|default:"" }}</td>
+              <td>{{ s.user_message_count }}</td>
+              <td>{{ s.bot_message_count }}</td>
+              <td>{{ s.lead_count }}</td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="8">No sessions yet.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    const labels = {{ day_labels|safe }};
+    const sessionData = {{ sessions_counts|safe }};
+    const leadData = {{ leads_counts|safe }};
+
+    const ctx = document.getElementById('sessionsLeadsChart').getContext('2d');
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: 'Sessions',
+            data: sessionData,
+            borderWidth: 2,
+            tension: 0.3
+          },
+          {
+            label: 'Leads',
+            data: leadData,
+            borderWidth: 2,
+            borderDash: [4, 3],
+            tension: 0.3
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: {
+            ticks: { color: '#9ca3af', maxRotation: 60, minRotation: 45 },
+            grid: { display: false }
+          },
+          y: {
+            beginAtZero: true,
+            ticks: { color: '#9ca3af' },
+            grid: { color: 'rgba(55,65,81,0.4)' }
+          }
+        },
+        plugins: {
+          legend: {
+            labels: { color: '#e5e7eb', font: { size: 11 } }
+          }
+        }
+      }
+    });
+  </script>
+</body>
+</html>
